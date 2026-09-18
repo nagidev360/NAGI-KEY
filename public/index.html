@@ -5,25 +5,17 @@
 .wrap{max-width:1100px;margin:auto;padding:32px 18px}.brand{font-size:28px;font-weight:800;margin-bottom:6px}.sub{color:#9299aa;margin-bottom:28px}
 .card{background:#111522;border:1px solid #252b3b;border-radius:18px;padding:24px;box-shadow:0 18px 50px #0006}
 input,button,select{width:100%;padding:13px 14px;border-radius:10px;border:1px solid #30374a;background:#0b0e16;color:#fff;margin-top:8px}
-button{background:#635bff;border:0;font-weight:700;cursor:pointer}button.secondary{background:#252b3b}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}.hidden{display:none}.stat{font-size:28px;font-weight:800}.muted{color:#8f97aa}.row{display:flex;gap:10px;align-items:center}.row>*{flex:1}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px}
+button{background:#635bff;border:0;font-weight:700;cursor:pointer}.secondary{background:#252b3b}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}.hidden{display:none}.stat{font-size:28px;font-weight:800}.muted{color:#8f97aa}.row{display:flex;gap:10px;align-items:center}.row>*{flex:1}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px}
 table{width:100%;border-collapse:collapse;margin-top:18px}th,td{text-align:left;padding:11px;border-bottom:1px solid #252b3b;font-size:14px}.error{color:#ff7d7d;margin-top:12px}.ok{color:#6ee7a8;margin-top:12px}
 @media(max-width:600px){.top{align-items:flex-start;flex-direction:column}.card{padding:18px}}
 </style></head><body><main class="wrap">
 <div class="brand">🔐 NAGI KEY</div><div class="sub">License Management Admin Panel</div>
 <section id="login" class="card" style="max-width:460px;margin:50px auto"><h2>Admin Login</h2>
-<label>Email</label><input id="email" type="email" autocomplete="username">
-<label>Password</label><input id="password" type="password" autocomplete="current-password">
-<button onclick="login()">Login</button><div id="msg"></div></section>
-<section id="dash" class="hidden"><div class="top"><div><h2 style="margin:0">Dashboard</h2><div class="muted" id="who"></div></div><button class="secondary" style="width:auto" onclick="logout()">Logout</button></div>
+<form id="loginForm"><label>Email</label><input id="email" type="email" autocomplete="username" required>
+<label>Password</label><input id="password" type="password" autocomplete="current-password" required>
+<button id="loginBtn" type="submit">Login</button><div id="msg"></div></form></section>
+<section id="dash" class="hidden"><div class="top"><div><h2 style="margin:0">Dashboard</h2><div class="muted" id="who"></div></div><button id="logoutBtn" class="secondary" style="width:auto">Logout</button></div>
 <div class="grid"><div class="card"><div class="muted">Total Licenses</div><div class="stat" id="total">0</div></div><div class="card"><div class="muted">Active</div><div class="stat" id="active">0</div></div><div class="card"><div class="muted">Expired</div><div class="stat" id="expired">0</div></div></div>
-<div class="card" style="margin-top:16px"><h3>Generate License</h3><div class="grid"><div><label>Product</label><input id="product" value="SANTHOSH_BARCODE_GEN"></div><div><label>Plan</label><input id="plan" value="CUSTOM"></div><div><label>Expiry Date</label><input id="expiry" type="datetime-local"></div><div><label>Max Activations</label><input id="max" type="number" value="1" min="1"></div></div><button onclick="generate()">Generate Key</button><div id="genmsg"></div></div>
-<div class="card" style="margin-top:16px"><div class="top"><h3 style="margin:0">Licenses</h3><button class="secondary" style="width:auto" onclick="load()">Refresh</button></div><div style="overflow:auto"><table><thead><tr><th>Key</th><th>Product</th><th>Plan</th><th>Status</th><th>Expiry</th><th>Devices</th></tr></thead><tbody id="rows"></tbody></table></div></div></section>
-</main><script>
-const $=id=>document.getElementById(id);
-async function api(url,opt={}){const r=await fetch(url,{credentials:'include',headers:{'Content-Type':'application/json',...(opt.headers||{})},...opt});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d?.error?.message||'Request failed');return d}
-async function login(){try{const d=await api('/api/v1/admin/login',{method:'POST',body:JSON.stringify({email:$('email').value,password:$('password').value})});$('login').classList.add('hidden');$('dash').classList.remove('hidden');$('who').textContent=d.data.email;load()}catch(e){$('msg').className='error';$('msg').textContent=e.message}}
-async function logout(){await api('/api/v1/admin/logout',{method:'POST'}).catch(()=>{});location.reload()}
-async function load(){try{const d=await api('/api/v1/admin/licenses');const a=d.data||[];$('total').textContent=a.length;$('active').textContent=a.filter(x=>x.status==='ACTIVE').length;$('expired').textContent=a.filter(x=>new Date(x.expiry_date)<new Date()).length;$('rows').innerHTML=a.map(x=>'<tr><td>'+x.key+'</td><td>'+x.product+'</td><td>'+x.plan+'</td><td>'+x.status+'</td><td>'+new Date(x.expiry_date).toLocaleString()+'</td><td>'+x.active_activations+'/'+x.max_activations+'</td></tr>').join('')}catch(e){if(e.message.includes('Authentication'))location.reload()}}
-async function generate(){try{const d=await api('/api/v1/admin/licenses',{method:'POST',body:JSON.stringify({product:$('product').value,plan:$('plan').value,expiry_date:new Date($('expiry').value).toISOString(),max_activations:Number($('max').value)})});$('genmsg').className='ok';$('genmsg').textContent='Generated: '+d.data.key;load()}catch(e){$('genmsg').className='error';$('genmsg').textContent=e.message}}
-(function(){const x=new Date();x.setDate(x.getDate()+30);$('expiry').value=x.toISOString().slice(0,16)})();
-</script></body></html>
+<div class="card" style="margin-top:16px"><h3>Generate License</h3><div class="grid"><div><label>Product</label><input id="product" value="SANTHOSH_BARCODE_GEN"></div><div><label>Plan</label><input id="plan" value="CUSTOM"></div><div><label>Expiry Date</label><input id="expiry" type="datetime-local"></div><div><label>Max Activations</label><input id="max" type="number" value="1" min="1"></div></div><button id="generateBtn">Generate Key</button><div id="genmsg"></div></div>
+<div class="card" style="margin-top:16px"><div class="top"><h3 style="margin:0">Licenses</h3><button id="refreshBtn" class="secondary" style="width:auto">Refresh</button></div><div style="overflow:auto"><table><thead><tr><th>Key</th><th>Product</th><th>Plan</th><th>Status</th><th>Expiry</th><th>Devices</th></tr></thead><tbody id="rows"></tbody></table></div></div></section>
+</main><script src="/app.js" defer></script></body></html>
