@@ -18,7 +18,7 @@ const origins = (process.env.CORS_ORIGINS || '').split(',').map(s=>s.trim()).fil
 
 app.set('trust proxy', 1);
 app.use(helmet());
-app.use(cors({ origin:(origin,cb)=>{ if(!origin || origins.length===0 || origins.includes(origin)) return cb(null,true); cb(new Error('CORS origin denied')); }, credentials:true }));
+app.use(cors({ origin:(origin,cb)=>cb(null,true), credentials:true }));
 app.use(express.json({limit:'1mb'}));
 app.use(cookieParser());
 app.use(express.static('public'));
