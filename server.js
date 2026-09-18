@@ -154,15 +154,15 @@ app.post('/api/v1/license/activate',async(req,res)=>{
    await c.query('BEGIN'); const l=await c.query('SELECT * FROM license_keys WHERE key=$1 FOR UPDATE',[b.key]);
    if(!l.rowCount){await c.query('ROLLBACK');return res.status(404).json({success:false,status:'INVALID',error:{code:'INVALID_LICENSE',message:'License key is invalid.'}});}
    const lic=l.rows[0], today=now();
-   if(lic.product!==b.product)return res.status(400).json({success:false,status:'PRODUCT_MISMATCH',error:{code:'PRODUCT_MISMATCH',message:'License does not belong to this product.'}});
-   if(lic.status==='REVOKED')return res.status(403).json({success:false,status:'REVOKED',error:{code:'LICENSE_REVOKED',message:'License has been revoked.'}});
-   if(lic.status==='SUSPENDED')return res.status(403).json({success:false,status:'SUSPENDED',error:{code:'LICENSE_SUSPENDED',message:'License is suspended.'}});
-   if(new Date(lic.expiry_date)<today)return res.status(403).json({success:false,status:'EXPIRED',error:{code:'LICENSE_EXPIRED',message:'License has expired.'}});
+   if(lic.product!==b.product){await c.query('ROLLBACK');return res.status(400).json({success:false,status:'PRODUCT_MISMATCH',error:{code:'PRODUCT_MISMATCH',message:'License does not belong to this product.'}});}
+   if(lic.status==='REVOKED'){await c.query('ROLLBACK');return res.status(403).json({success:false,status:'REVOKED',error:{code:'LICENSE_REVOKED',message:'License has been revoked.'}});}
+   if(lic.status==='SUSPENDED'){await c.query('ROLLBACK');return res.status(403).json({success:false,status:'SUSPENDED',error:{code:'LICENSE_SUSPENDED',message:'License is suspended.'}});}
+   if(new Date(lic.expiry_date)<today){await c.query('ROLLBACK');return res.status(403).json({success:false,status:'EXPIRED',error:{code:'LICENSE_EXPIRED',message:'License has expired.'}});}
    const existing=await c.query("SELECT * FROM activations WHERE license_id=$1 AND device_id=$2 AND status='active'",[lic.id,b.device_id]);
    let a=existing.rows[0];
    if(!a){
     const count=await c.query("SELECT count(*)::int n FROM activations WHERE license_id=$1 AND status='active'",[lic.id]);
-    if(count.rows[0].n>=lic.max_activations)return res.status(409).json({success:false,status:'DEVICE_NOT_AUTHORIZED',error:{code:'ACTIVATION_LIMIT_REACHED',message:'Activation limit reached.'}});
+    if(count.rows[0].n>=lic.max_activations){await c.query('ROLLBACK');return res.status(409).json({success:false,status:'DEVICE_NOT_AUTHORIZED',error:{code:'ACTIVATION_LIMIT_REACHED',message:'Activation limit reached.'}});}
     const ins=await c.query("INSERT INTO activations(license_id,device_id,device_name,ip_address,user_agent,app_version,os_version,last_verified_at) VALUES($1,$2,$3,$4,$5,$6,$7,NOW()) RETURNING *",[lic.id,b.device_id,b.device_name||'',clientIp(req),req.get('user-agent')||'',b.app_version||'',b.os_version||'']); a=ins.rows[0];
    }else await c.query("UPDATE activations SET last_verified_at=NOW(),device_name=COALESCE(NULLIF($1,''),device_name),app_version=COALESCE(NULLIF($2,''),app_version) WHERE id=$3",[b.device_name||'',b.app_version||'',a.id]);
    await c.query('COMMIT'); await audit(req,'LICENSE_ACTIVATED',{licenseId:lic.id,activationId:a.id,metadata:{product:b.product}});
