@@ -1,38 +1,9 @@
 const $=id=>document.getElementById(id);
-async function api(url,opt={}){
-  const r=await fetch(url,{credentials:'include',headers:{'Content-Type':'application/json',...(opt.headers||{})},...opt});
-  const d=await r.json().catch(()=>({}));
-  if(!r.ok) throw new Error(d?.error?.message||d?.message||('Request failed ('+r.status+')'));
-  return d;
-}
+async function api(url,opt={}){const r=await fetch(url,{credentials:'include',headers:{'Content-Type':'application/json',...(opt.headers||{})},...opt});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d?.error?.message||d?.message||('Request failed ('+r.status+')'));return d;}
 function setMsg(el,msg,ok=false){el.className=ok?'ok':'error';el.textContent=msg;}
-async function login(){
-  const btn=$('loginBtn'), msg=$('msg');
-  btn.disabled=true; btn.textContent='Logging in...'; msg.textContent='';
-  try{
-    const d=await api('/api/v1/admin/login',{method:'POST',body:JSON.stringify({email:$('email').value.trim(),password:$('password').value})});
-    $('login').classList.add('hidden'); $('dash').classList.remove('hidden'); $('who').textContent=d.data?.email||$('email').value;
-    await load();
-  }catch(e){setMsg(msg,e.message||'Login failed');}
-  finally{btn.disabled=false;btn.textContent='Login';}
-}
+async function login(){const btn=$('loginBtn'),msg=$('msg');btn.disabled=true;btn.textContent='Logging in...';msg.textContent='';try{const d=await api('/api/v1/admin/login',{method:'POST',body:JSON.stringify({email:$('email').value.trim(),password:$('password').value})});$('login').classList.add('hidden');$('dash').classList.remove('hidden');$('who').textContent=d.data?.email||$('email').value;await load();}catch(e){setMsg(msg,e.message||'Login failed');}finally{btn.disabled=false;btn.textContent='Login';}}
 async function logout(){await api('/api/v1/admin/logout',{method:'POST'}).catch(()=>{});location.reload();}
-async function load(){
-  try{
-    const d=await api('/api/v1/admin/licenses'); const a=d.data||[];
-    $('total').textContent=a.length; $('active').textContent=a.filter(x=>x.status==='ACTIVE').length;
-    $('expired').textContent=a.filter(x=>new Date(x.expiry_date)<new Date()).length;
-    $('rows').innerHTML=a.map(x=>'<tr><td>'+x.key+'</td><td>'+x.product+'</td><td>'+x.plan+'</td><td>'+x.status+'</td><td>'+new Date(x.expiry_date).toLocaleString()+'</td><td>'+x.active_activations+'/'+x.max_activations+'</td></tr>').join('');
-  }catch(e){setMsg($('msg'),e.message||'Could not load licenses');}
-}
-async function generate(){
-  try{
-    const d=await api('/api/v1/admin/licenses',{method:'POST',body:JSON.stringify({product:$('product').value,plan:$('plan').value,expiry_date:new Date($('expiry').value).toISOString(),max_activations:Number($('max').value)})});
-    setMsg($('genmsg'),'Generated: '+d.data.key,true); await load();
-  }catch(e){setMsg($('genmsg'),e.message||'Generate failed');}
-}
-document.addEventListener('DOMContentLoaded',()=>{
-  $('loginForm').addEventListener('submit',e=>{e.preventDefault();login();});
-  $('logoutBtn').addEventListener('click',logout); $('refreshBtn').addEventListener('click',load); $('generateBtn').addEventListener('click',generate);
-  const x=new Date();x.setDate(x.getDate()+30);$('expiry').value=x.toISOString().slice(0,16);
-});
+async function licenseAction(id,action){const label=action==='reactivate'?'Activate':'Suspend';if(!confirm(label+' this license?'))return;try{await api('/api/v1/admin/licenses/'+encodeURIComponent(id)+'/'+action,{method:'POST'});await load();}catch(e){alert(e.message||label+' failed');}}
+async function load(){try{const d=await api('/api/v1/admin/licenses');const a=d.data||[];$('total').textContent=a.length;$('active').textContent=a.filter(x=>x.status==='ACTIVE').length;$('expired').textContent=a.filter(x=>new Date(x.expiry_date)<new Date()).length;$('rows').innerHTML=a.map(x=>{const action=x.status==='ACTIVE'?'<button class="tableBtn danger" data-id="'+x.id+'" data-action="suspend">Suspend</button>':'<button class="tableBtn" data-id="'+x.id+'" data-action="reactivate">Activate</button>';return '<tr><td>'+x.key+'</td><td>'+x.product+'</td><td>'+x.plan+'</td><td><b>'+x.status+'</b></td><td>'+new Date(x.expiry_date).toLocaleString()+'</td><td>'+x.active_activations+'/'+x.max_activations+'</td><td>'+action+'</td></tr>';}).join('');document.querySelectorAll('.tableBtn').forEach(btn=>btn.addEventListener('click',()=>licenseAction(btn.dataset.id,btn.dataset.action)));}catch(e){setMsg($('msg'),e.message||'Could not load licenses');}}
+async function generate(){try{const d=await api('/api/v1/admin/licenses',{method:'POST',body:JSON.stringify({product:$('product').value,plan:$('plan').value,expiry_date:new Date($('expiry').value).toISOString(),max_activations:Number($('max').value)})});setMsg($('genmsg'),'Generated: '+d.data.key,true);await load();}catch(e){setMsg($('genmsg'),e.message||'Generate failed');}}
+document.addEventListener('DOMContentLoaded',()=>{$('loginForm').addEventListener('submit',e=>{e.preventDefault();login();});$('logoutBtn').addEventListener('click',logout);$('refreshBtn').addEventListener('click',load);$('generateBtn').addEventListener('click',generate);const x=new Date();x.setDate(x.getDate()+30);$('expiry').value=x.toISOString().slice(0,16);});
