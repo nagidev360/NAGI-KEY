@@ -21,6 +21,8 @@ app.use(helmet());
 app.use(cors({ origin:(origin,cb)=>{ if(!origin || origins.length===0 || origins.includes(origin)) return cb(null,true); cb(new Error('CORS origin denied')); }, credentials:true }));
 app.use(express.json({limit:'1mb'}));
 app.use(cookieParser());
+app.use(express.static('public'));
+app.get('/',(req,res)=>res.sendFile('index.html',{root:'public'}));
 
 const publicLimiter=rateLimit({windowMs:15*60*1000,max:300,standardHeaders:true,legacyHeaders:false});
 const authLimiter=rateLimit({windowMs:15*60*1000,max:10,standardHeaders:true,legacyHeaders:false});
