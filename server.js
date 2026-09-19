@@ -18,7 +18,7 @@ const origins = (process.env.CORS_ORIGINS || '').split(',').map(s=>s.trim()).fil
 
 app.set('trust proxy', 1);
 app.use(helmet());
-app.use(cors({ origin:(origin,cb)=>cb(null,true), credentials:true }));
+const allowedOrigins=(process.env.CORS_ORIGINS||'').split(',').map(s=>s.trim()).filter(Boolean);\napp.use(cors({ origin:(origin,cb)=>{ if(!origin || allowedOrigins.length===0 || allowedOrigins.includes(origin)) return cb(null,true); return cb(new Error('CORS origin denied')); }, credentials:true }));
 app.use(express.json({limit:'1mb'}));
 app.use(cookieParser());
 app.use(express.static('public'));
@@ -157,7 +157,7 @@ app.post('/api/v1/license/activate',async(req,res)=>{
    if(lic.product!==b.product){await c.query('ROLLBACK');return res.status(400).json({success:false,status:'PRODUCT_MISMATCH',error:{code:'PRODUCT_MISMATCH',message:'License does not belong to this product.'}});}
    if(lic.status==='REVOKED'){await c.query('ROLLBACK');return res.status(403).json({success:false,status:'REVOKED',error:{code:'LICENSE_REVOKED',message:'License has been revoked.'}});}
    if(lic.status==='SUSPENDED'){await c.query('ROLLBACK');return res.status(403).json({success:false,status:'SUSPENDED',error:{code:'LICENSE_SUSPENDED',message:'License is suspended.'}});}
-   if(new Date(lic.expiry_date)<today){await c.query('ROLLBACK');return res.status(403).json({success:false,status:'EXPIRED',error:{code:'LICENSE_EXPIRED',message:'License has expired.'}});}
+   if(new Date(lic.start_date)>today || new Date(lic.expiry_date)<today){await c.query('ROLLBACK');return res.status(403).json({success:false,status:'EXPIRED',error:{code:'LICENSE_EXPIRED',message:'License is outside its active period.'}});}
    const existing=await c.query("SELECT * FROM activations WHERE license_id=$1 AND device_id=$2 AND status='active'",[lic.id,b.device_id]);
    let a=existing.rows[0];
    if(!a){
@@ -177,7 +177,7 @@ app.post('/api/v1/license/verify',async(req,res)=>{
   const lic=l.rows[0]; if(lic.product!==b.product)return res.json({success:false,status:'PRODUCT_MISMATCH'});
   if(lic.status==='REVOKED')return res.json({success:false,status:'REVOKED'});
   if(lic.status==='SUSPENDED')return res.json({success:false,status:'SUSPENDED'});
-  if(new Date(lic.expiry_date)<now())return res.json({success:false,status:'EXPIRED'});
+  if(new Date(lic.start_date)>now() || new Date(lic.expiry_date)<now())return res.json({success:false,status:'EXPIRED'});
   const a=await pool.query("SELECT id FROM activations WHERE license_id=$1 AND device_id=$2 AND status='active'",[lic.id,b.device_id]); if(!a.rowCount)return res.json({success:false,status:'DEVICE_NOT_AUTHORIZED'});
   await pool.query('UPDATE activations SET last_verified_at=NOW() WHERE id=$1',[a.rows[0].id]); await audit(req,'LICENSE_VERIFIED',{licenseId:lic.id,activationId:a.rows[0].id});
   res.json({success:true,status:'ACTIVE',license:{product:lic.product,plan:lic.plan,expiry_date:lic.expiry_date,device_id:b.device_id,activation_id:a.rows[0].id}});
@@ -185,7 +185,7 @@ app.post('/api/v1/license/verify',async(req,res)=>{
 });
 app.post('/api/v1/license/deactivate',async(req,res)=>{try{const b=licenseInput.pick({key:true,product:true,device_id:true}).parse(req.body);const r=await pool.query("UPDATE activations a SET status='inactive' FROM license_keys l WHERE a.license_id=l.id AND l.key=$1 AND l.product=$2 AND a.device_id=$3 AND a.status='active' RETURNING a.id,a.license_id",[b.key,b.product,b.device_id]);if(!r.rowCount)return res.status(404).json({success:false,error:{code:'ACTIVATION_NOT_FOUND',message:'Active activation not found.'}});await audit(req,'LICENSE_DEACTIVATED',{licenseId:r.rows[0].license_id,activationId:r.rows[0].id});res.json({success:true,data:{status:'inactive'}});}catch(e){safeError(res,e);}});
 
-app.use((err,req,res,next)=>res.status(500).json({success:false,error:{code:'SERVER_ERROR',message:'Request failed.'}}));
+app.use((err,req,res,next)=>{ if(err.message==='CORS origin denied') return res.status(403).json({success:false,error:{code:'CORS_DENIED',message:'Origin not allowed.'}}); return res.status(500).json({success:false,error:{code:'SERVER_ERROR',message:'Request failed.'}}); });
 
 async function start(){try{if(!pool)console.warn('DATABASE_URL is not configured.');else await initDb();app.listen(PORT,'0.0.0.0',()=>console.log(`NAGI KEY listening on ${PORT}`));}catch(e){console.error('Startup database error:',e.message);app.listen(PORT,'0.0.0.0',()=>console.log(`NAGI KEY listening on ${PORT} (database unavailable)`));}}
 start();
