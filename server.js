@@ -18,7 +18,8 @@ const origins = (process.env.CORS_ORIGINS || '').split(',').map(s=>s.trim()).fil
 
 app.set('trust proxy', 1);
 app.use(helmet());
-const allowedOrigins=(process.env.CORS_ORIGINS||'').split(',').map(s=>s.trim()).filter(Boolean);\napp.use(cors({ origin:(origin,cb)=>{ if(!origin || allowedOrigins.length===0 || allowedOrigins.includes(origin)) return cb(null,true); return cb(new Error('CORS origin denied')); }, credentials:true }));
+const allowedOrigins=(process.env.CORS_ORIGINS||'').split(',').map(s=>s.trim()).filter(Boolean);
+app.use(cors({ origin:(origin,cb)=>{ if(!origin || allowedOrigins.length===0 || allowedOrigins.includes(origin)) return cb(null,true); return cb(new Error('CORS origin denied')); }, credentials:true }));
 app.use(express.json({limit:'1mb'}));
 app.use(cookieParser());
 app.use(express.static('public'));
